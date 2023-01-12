@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Net.Http;
 using System.Threading.Tasks;
 using Microsoft.Azure.WebJobs;
@@ -43,9 +44,25 @@ namespace DurableFunction
         public static async Task<string> FunctionChainingAndFanOutFanInSayHello([ActivityTrigger] ActivityDto dto, ILogger log)
         {
             if(dto.Async) await Task.Delay(Random.Shared.Next(5000, 10000));
+            if (Random.Shared.Next(1, 11) > 7)
+            {
+                throw new TooManyRequestsException();
+            }
 
+            var fileName = $"{DateTime.UtcNow:dddd-MMMM-dd-yyyy--HH_mm_ss_fff}";
             log.LogInformation($"Saying hello to {dto.Name}.");
+            File.Create($"C:\\_test\\DurableFunctions\\{dto.Name}-{fileName}.file");
             return $"Hello {dto.Name}!";
+        }
+
+        [FunctionName("RewindInstance")]
+        public static Task Run(
+            [HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)] string instanceId,
+            [DurableClient] IDurableOrchestrationClient client
+            )
+        {
+            string reason = "Orchestrator failed and needs to be revived.";
+            return client.RewindAsync(instanceId, reason);
         }
 
         //Entry Point Chaining Function
@@ -62,5 +79,16 @@ namespace DurableFunction
 
             return starter.CreateCheckStatusResponse(req, instanceId);
         }
+
+        public static RetryOptions Options = new RetryOptions(
+            firstRetryInterval: TimeSpan.FromSeconds(2),
+            maxNumberOfAttempts: 5)
+        {
+            Handle = (exception) => exception.InnerException is TooManyRequestsException
+        };
+    }
+
+    public class TooManyRequestsException : Exception
+    {
     }
 }
