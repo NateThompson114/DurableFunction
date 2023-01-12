@@ -24,9 +24,9 @@ namespace DurableFunction
             outputs.Add(await context.CallActivityAsync<string>(nameof(FunctionChainingAndFanOutFanInSayHello), new ActivityDto("Tokyo")));
             outputs.Add(await context.CallActivityAsync<string>(nameof(FunctionChainingAndFanOutFanInSayHello), new ActivityDto("Seattle")));
 
-            task.Add(context.CallActivityAsync<string>(nameof(FunctionChainingAndFanOutFanInSayHello), new ActivityDto("Sacramento", true)));
-            task.Add(context.CallActivityAsync<string>(nameof(FunctionChainingAndFanOutFanInSayHello), new ActivityDto("Moscow", true)));
-            task.Add(context.CallActivityAsync<string>(nameof(FunctionChainingAndFanOutFanInSayHello), new ActivityDto("France", true)));
+            task.Add(context.CallActivityAsync<string>(nameof(FunctionChainingAndFanOutFanInSayHello), new ActivityDto("Sacramento", true, true)));
+            task.Add(context.CallActivityAsync<string>(nameof(FunctionChainingAndFanOutFanInSayHello), new ActivityDto("Moscow", true, true)));
+            task.Add(context.CallActivityAsync<string>(nameof(FunctionChainingAndFanOutFanInSayHello), new ActivityDto("France", true, true)));
 
             outputs.AddRange(await Task.WhenAll(task));
 
@@ -38,13 +38,13 @@ namespace DurableFunction
             return outputs;
         }
 
-        public record ActivityDto(string Name, bool Async = false);
+        public record ActivityDto(string Name, bool Async = false, bool CanFail = false);
 
         [FunctionName(nameof(FunctionChainingAndFanOutFanInSayHello))]
         public static async Task<string> FunctionChainingAndFanOutFanInSayHello([ActivityTrigger] ActivityDto dto, ILogger log)
         {
             if(dto.Async) await Task.Delay(Random.Shared.Next(5000, 10000));
-            if (Random.Shared.Next(1, 11) > 7)
+            if (dto.CanFail && Random.Shared.Next(1, 11) > 7)
             {
                 throw new TooManyRequestsException();
             }
